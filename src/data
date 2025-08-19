@@ -1,0 +1,13 @@
+AZURE_OPENAI_API_KEY=ffb984ad6003bf8a
+OPENAI_API_VERSION=24-02-01
+AZURE_OPENAI_ENDPOINT=https://hexavarsity-secureapi.azurewebsites.net/api/azureai
+AZURE_OPENAI_CHAT_MODEL=gpt-4o-mini
+AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-ada-002
+# Groq API key
+GROQ_API_KEY=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
+
+# Groq chat model deployment (as listed in your Groq dashboard)
+GROQ_CHAT_MODEL=llama3-8b-8192
+
+# Embedding model name (HuggingFace Jina embeddings)
+HF_EMBEDDING_MODEL=jinaai/jina-embeddings-v2-base-en

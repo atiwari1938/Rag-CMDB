@@ -1,0 +1,120 @@
+[07/08, 23:23] Ankit Tiwari: // Uptrends Multistep API Monitor: LivePerson Status & Maintenance Check
+ 
+// Step 1: LivePerson Status API
+// Step 2: LivePerson Maintenance API
+// Handles:
+// - Downtime alerts when any status != "OK"
+// - Maintenance alerts only once per maintenance ID
+ 
+if (!Monitor.Context) {
+  Monitor.Context = {};
+}
+ 
+// STEP 1: LivePerson Status API
+if (StepIndex === 1) {
+  var statusResponse = JSON.parse(Response.Body);
+ 
+  // Assertion (optional UI-based): All values must be "OK"
+  for (var service in statusResponse) {
+    if (statusResponse[service].toUpperCase() !== "OK") {
+      Monitor.Fail("\ud83d\udea8 Downtime: " + service + " = " + statusResponse[service]);
+    }
+  }
+ 
+  Monitor.Pass("\u2705 All services operational");
+}
+ 
+// STEP 2: LivePerson Maintenance API
+if (StepIndex === 2) {
+  var maintenanceResponse = JSON.parse(Response.Body);
+ 
+  if (maintenanceResponse.length > 0) {
+    var nextMaintenance = maintenanceResponse[0];
+    var maintenanceId = nextMaintenance.id;
+    var startDate = new Date(nextMaintenance.start_date * 1000).toUTCString();
+ 
+    if (Monitor.Context.LastMaintenanceId !== maintenanceId) {
+      Monitor.Context.LastMaintenanceId = maintenanceId;
+ 
+      var alertMsg = "\ud83d\udea7 Maintenance scheduled: " + nextMaintenance.activity +
+        "\nStart Time: " + startDate +
+        "\nAffected: " + nextMaintenance.service_impacted +
+        "\nCase: " + nextMaintenance.support_case;
+ 
+      Monitor.Fail(alertMsg);
+    } else {
+      Monitor.Pass("\u23ed Maintenance already alerted for ID: " + maintenanceId);
+    }
+  } else {
+    Monitor.Pass("\u2705 No upcoming maintenance.");
+  }
+}
+[07/08, 23:26] Ankit Tiwari: Go to Uptrends > Add Monitor → select Multistep API Monitor
+ 
+Add two steps:
+ 
+Step 1: GET https://status.liveperson.com/json?site=47817293
+ 
+Step 2: GET https://status.liveperson.com/maintenanceapi?site=47817293
+ 
+Click "Switch to script"
+ 
+Paste the content from the document titled “LivePerson_MSA_Monitor_Script”
+ 
+Save the monitor
+ 
+Go to Alert Definitions and set:
+ 
+Condition: Fail 1 out of 1
+ 
+Message: {{step.result.reason}} (to show the custom message from script)
+ 
+Assign to your LivePerson alert group
+[07/08, 23:34] Ankit Tiwari: // Uptrends Multistep API Monitor Script for LivePerson
+// Monitors downtime and upcoming maintenance via two Open APIs
+ 
+if (!Monitor.Context) {
+  Monitor.Context = {};  // Persistent state for alert suppression
+}
+ 
+// STEP 1: Check LivePerson Status API
+if (StepIndex === 1) {
+  var statusResponse = JSON.parse(Response.Body);
+ 
+  // Check if any service is not OK
+  for (var service in statusResponse) {
+    if (statusResponse[service].toUpperCase() !== "OK") {
+      Monitor.Fail("Downtime detected: " + service + " = " + statusResponse[service]);
+    }
+  }
+ 
+  Monitor.Pass("All LivePerson services are operational.");
+}
+ 
+// STEP 2: Check Maintenance API
+if (StepIndex === 2) {
+  var maintenanceResponse = JSON.parse(Response.Body);
+ 
+  if (maintenanceResponse.length > 0) {
+    var nextMaintenance = maintenanceResponse[0];
+    var maintenanceId = nextMaintenance.id;
+    var startDate = new Date(nextMaintenance.start_date * 1000).toUTCString();
+ 
+    // Trigger alert only if this maintenance ID hasn't been alerted yet
+    if (Monitor.Context.LastMaintenanceId !== maintenanceId) {
+      Monitor.Context.LastMaintenanceId = maintenanceId;
+ 
+      var alertMsg = "Maintenance Scheduled: " + nextMaintenance.activity +
+        "\nStart Time: " + startDate +
+        "\nAffected: " + nextMaintenance.service_impacted +
+        "\nSupport Case: " + nextMaintenance.support_case;
+ 
+      Monitor.Fail(alertMsg);
+    } else {
+      Monitor.Pass("Maintenance already alerted for ID: " + maintenanceId);
+    }
+  } else {
+    Monitor.Pass("No upcoming maintenance found.");
+  }
+}
+ 

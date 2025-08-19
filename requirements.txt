@@ -1,0 +1,13 @@
+pandas
+openpyxl
+pyarrow
+faiss-cpu
+openai
+langchain
+python-dotenv
+groq                        # Groq Python client for chat completions
+sentence-transformers      # For local embedding model
+
+python src\ingestion.py
+python src\embeddings.py
+python src\main.py -q "Your question here" --top_k 3
