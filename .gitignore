@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.venv/
+.env
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Data and build artifacts
+/data/faiss_index.idx
+/data/tickets_meta.pkl
+/data/tickets.parquet
+/data/processed_hashes.db
+/data/incoming/
+
+# IDEs and OS
+.vscode/
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Misc
+*.sqlite
+*.db
+
+# Ignore build output
+dist/
+build/
+
+# npm
+package-lock.json
+
+# local env files
+*.env
