@@ -1,0 +1,252 @@
+import os
+from dotenv import load_dotenv
+from openai import AzureOpenAI
+
+print("Debug: Starting client initialization")
+load_dotenv()
+
+# Print configuration (with masked API key)
+api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+masked_key = api_key[:4] + "..." + api_key[-4:] if api_key else "Not found"
+
+print("\nConfiguration:")
+print(f"Endpoint: {os.getenv('AZURE_OPENAI_ENDPOINT', 'Not found')}")
+print(f"API Key: {masked_key}")
+print(f"API Version: {os.getenv('OPENAI_API_VERSION', 'Not found')}")
+print(f"Chat Model: {os.getenv('AZURE_OPENAI_CHAT_MODEL', 'Not found')}")
+print(f"Embedding Model: {os.getenv('AZURE_OPENAI_EMBEDDING_MODEL', 'Not found')}")
+
+# Initialize the real Azure OpenAI client
+try:
+    client = AzureOpenAI(
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("OPENAI_API_VERSION")
+    )
+    print("\nDebug: Azure OpenAI client initialized successfully")
+except Exception as e:
+    print(f"\nError initializing Azure OpenAI client: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    raise
+
+# Model deployments (set these in .env)
+CHAT_DEPLOYMENT = os.getenv("AZURE_OPENAI_CHAT_MODEL")
+EMBED_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDING_MODEL")
+
+def get_chat_response(messages, context=None):
+    """
+    Get a response from the Azure OpenAI chat model with support context
+    Args:
+        messages: List of message dictionaries
+        context: Optional dictionary containing relevant ticket data
+    """
+    try:
+        print("\nPreparing chat request...")
+        # Add system message with support context
+        system_message = {
+            "role": "system",
+            "content": """You are an experienced IT Support Assistant. Analyze the provided context and user query to give accurate, relevant responses.
+            
+Guidelines:
+1. Always consider the specific context provided in tickets/documentation
+2. Prioritize official procedures and security protocols
+3. Give step-by-step solutions when applicable
+4. If information is missing, clearly state what additional details are needed
+5. For critical issues, include escalation paths
+6. Reference relevant ticket numbers or documentation when available
+
+Current Support Knowledge Base Includes:
+- Password reset procedures
+- Access management protocols
+- Software installation guidelines
+- Network troubleshooting steps
+- Security compliance requirements"""
+        }
+        
+        # Insert context if provided
+        if context:
+            system_message["content"] += f"\n\nRelevant Context:\n{context}"
+            
+        # Ensure system message is first
+        if not messages or messages[0]["role"] != "system":
+            messages = [system_message] + messages
+            
+        try:
+        print(f"Sending request to model: {CHAT_DEPLOYMENT}")
+        print(f"Messages: {messages}")
+        
+        response = client.chat.completions.create(
+            model=CHAT_DEPLOYMENT,
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1500,
+            top_p=0.95,
+            presence_penalty=0.1,
+            frequency_penalty=0.1
+        )
+        print("Got response from API")
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error getting chat response: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+def get_embeddings(texts):
+    """
+    Get embeddings for one or more texts using Azure OpenAI
+    """
+    try:
+        if isinstance(texts, str):
+            texts = [texts]
+            
+        response = client.embeddings.create(
+            model=EMBED_DEPLOYMENT,
+            input=texts,
+            encoding_format="float"
+        )
+        
+        # Return list of embeddings or single embedding based on input
+        embeddings = [data.embedding for data in response.data]
+        return embeddings[0] if len(embeddings) == 1 else embeddings
+        
+    except Exception as e:
+        print(f"Error getting embeddings: {e}")
+        raise
+
+# Example usage
+if __name__ == "__main__":
+    try:
+        # Test Case 1: Password Reset with Context
+        print("\nTest Case 1: Password Reset Request")
+        context = {
+            "ticket_id": "INC001",
+            "user_department": "Finance",
+            "previous_incidents": "2 failed login attempts",
+            "security_level": "High",
+            "relevant_policies": ["MFA Required", "90-day password rotation"]
+        }
+        
+        messages = [
+            {"role": "user", "content": "I need to reset my password urgently for the financial system"}
+        ]
+        
+        response = get_chat_response(messages, str(context))
+        print("\nContext-Aware Response:", response)
+
+        # Test Case 2: Software Installation with Policy Check
+        print("\nTest Case 2: Software Installation Request")
+        context = {
+            "ticket_id": "REQ002",
+            "software_name": "Adobe Creative Suite",
+            "user_role": "Marketing Designer",
+            "license_status": "Available",
+            "approval_status": "Pending manager approval"
+        }
+        
+        messages = [
+            {"role": "user", "content": "I need to install Adobe Creative Suite on my workstation"}
+        ]
+        
+        response = get_chat_response(messages, str(context))
+        print("\nPolicy-Aware Response:", response)
+
+        # Test Case 3: Network Issue with Technical Context
+        print("\nTest Case 3: Network Connectivity Issue")
+        context = {
+            "ticket_id": "INC003",
+            "system_status": "VPN Service: Active, Network Load: 85%",
+            "user_location": "Remote",
+            "recent_changes": "VPN client update deployed yesterday",
+            "affected_services": ["Email", "SharePoint"]
+        }
+        
+        messages = [
+            {"role": "user", "content": "Cannot access company resources while working from home"}
+        ]
+        
+        response = get_chat_response(messages, str(context))
+        print("\nTechnical Context Response:", response)
+
+        # Test embeddings still work
+        print("\nTesting Embedding Generation:")
+        texts = [
+            "High priority password reset request for financial system access",
+            "VPN connectivity issues after recent system update",
+            "Software installation request pending approval"
+        ]
+        embeddings = get_embeddings(texts)
+        print(f"Generated {len(embeddings)} embeddings")
+        print(f"Embedding dimension: {len(embeddings[0])}")
+        
+    except Exception as e:
+        print(f"Test run failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+# import os
+# from dotenv import load_dotenv
+# from openai import AzureOpenAI
+
+# # Load environment variables from .env file
+# load_dotenv()
+
+# # Set up Azure OpenAI client
+# client = AzureOpenAI(
+#     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+#     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+#     api_version=os.getenv("OPENAI_API_VERSION")
+# )
+
+# # Function to get chat completions
+# def get_chat_response(messages):
+#     response = client.chat.completions.create(
+#         model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL"),
+#         messages=messages
+#     )
+#     return response.choices[0].message.content
+
+# # Function to get embeddings
+# def get_embeddings(input_text):
+#     response = client.embeddings.create(
+#         model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL"),
+#         input=input_text,
+#         encoding_format="float"
+#     )
+#     return response.data[0].embedding
+
+# # Example usage
+# if __name__ == "__main__":
+#     # Chat example
+#     chat_messages = [
+#         {"role": "system", "content": "You are a helpful assistant."},
+#         {"role": "user", "content": "Does Azure OpenAI support customer managed keys?"},
+#         {"role": "assistant", "content": "Yes, customer managed keys are supported by Azure OpenAI."},
+#         {"role": "user", "content": "Do other Azure services support this too?"}
+#     ]
+#     chat_response = get_chat_response(chat_messages)
+#     print("Chat Response:", chat_response)
+
+#     # Embedding example
+#     input_text = "Hello AI"
+#     embedding = get_embeddings(input_text)
+#     print("Embedding:", embedding)
+
+
+
+# import os
+# from dotenv import load_dotenv
+# from groq import Groq
+
+# # Load environment variables
+# load_dotenv()
+
+# # Initialize Groq client for chat completions
+# # :contentReference[oaicite:0]{index=0}
+# client = Groq(
+#     api_key=os.getenv("GROQ_API_KEY")
+# )
+
+# # Deployment/model name for chat
+# CHAT_MODEL = os.getenv("GROQ_CHAT_MODEL", "llama3-8b-8192")

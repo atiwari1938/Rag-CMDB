@@ -1,32 +1,27 @@
-# import argparse
-# from retriever import retrieve
-# from generator import generate_response
-
-# def main():
-#     p = argparse.ArgumentParser(description="SupportAssist AI CLI")
-#     sub = p.add_subparsers(dest="cmd", required=True)
-#     q = sub.add_parser("retrieve")
-#     q.add_argument("--query", required=True)
-#     g = sub.add_parser("generate")
-#     g.add_argument("--query", required=True)
-
-#     args = p.parse_args()
-#     if args.cmd == "retrieve":
-#         print(retrieve(args.query))
-#     elif args.cmd == "generate":
-#         print(generate_response(args.query, retrieve(args.query)))
-
-# if __name__ == "__main__":
-#     main()
-# src/main.py
-
-import argparse
-from ingestion import process as ingest
-from embeddings import embed_documents
-from retriever import retrieve
-from generator import generate_response
+print("Starting script...")
+try:
+    import sys
+    import os
+    # Add the src directory to the Python path
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    import argparse
+    print("Imported argparse")
+    from src.ingestion import process as ingest
+    print("Imported ingestion")
+    from src.embeddings import embed_documents
+    print("Imported embeddings")
+    from src.retriever import retrieve, generate_response
+    print("Imported retriever")
+except Exception as e:
+    import traceback
+    print(f"Import error: {e}")
+    traceback.print_exc()
 
 def main():
+    """
+    Run the full SupportAssist AI pipeline: ingest → embed → retrieve → generate.
+    """
     parser = argparse.ArgumentParser(
         description="Run the full SupportAssist AI pipeline: ingest → embed → retrieve → generate"
     )
@@ -44,25 +39,47 @@ def main():
     )
     args = parser.parse_args()
 
-    # Step 1: Ingestion
-    print("\n1️⃣  Data Ingestion")
-    ingest()
+    if not args.query.strip():
+        print("❌ Error: Query cannot be empty.")
+        return
 
-    # Step 2: Embeddings & Indexing
-    print("\n2️⃣  Embedding Documents")
-    embed_documents()
+    try:
+        print("\n1️⃣  Data Ingestion")
+        print("Starting ingestion process...")
+        ingest()
+        print("Ingestion completed successfully")
+    except Exception as e:
+        print(f"❌ Data ingestion failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return
 
-    # Step 3: Retrieval
-    print(f"\n3️⃣  Retrieving top {args.top_k} tickets for query:\n   \"{args.query}\"")
-    tickets = retrieve(args.query, top_k=args.top_k)
-    for i, t in enumerate(tickets, 1):
-        print(f"   {i}. {t['short_description']}")
+    try:
+        print("\n2️⃣  Embedding Documents")
+        embed_documents()
+    except Exception as e:
+        print(f"❌ Embedding documents failed: {e}")
+        return
 
-    # Step 4: Generation
-    print("\n4️⃣  Generating AI Response")
-    response = generate_response(args.query, tickets)
-    print("\n💬 Final Response:\n")
-    print(response)
+    try:
+        print(f"\n3️⃣  Retrieving top {args.top_k} tickets for query:\n   \"{args.query}\"")
+        tickets = retrieve(args.query, [], args.top_k)
+        if tickets:
+            for i, t in enumerate(tickets, 1):
+                print(f"   {i}. {t['short_description']}")
+        else:
+            print("   No relevant tickets found.")
+    except Exception as e:
+        print(f"❌ Retrieval failed: {e}")
+        return
+
+    try:
+        print("\n4️⃣  Generating AI Response")
+        response = generate_response(args.query, tickets)
+        print("\n💬 Final Response:\n")
+        print(response)
+    except Exception as e:
+        print(f"❌ Generation failed: {e}")
 
 if __name__ == "__main__":
     main()
